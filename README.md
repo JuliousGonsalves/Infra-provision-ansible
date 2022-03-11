@@ -86,9 +86,9 @@ chkconfig httpd on
 - name: "AWS infrastructure creation using Ansible"
   hosts: localhost
   vars:
-    aws_profile: "ansible-dev"
+    aws_profile: "<profile-name>"
     region: "ap-south-1"
-    project: "juliousgonsalves94.tk"
+    project: "<add the project name>"
     instance_type : "t2.micro"
     ami_id: "ami-0e0ff68cb8e9a188a"
 
