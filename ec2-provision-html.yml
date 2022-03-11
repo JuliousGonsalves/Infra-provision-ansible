@@ -1,0 +1,96 @@
+---
+
+- name: "AWS infrastructure creation using Ansible"
+  hosts: localhost
+  vars:
+    aws_profile: "ansible-dev"
+    region: "ap-south-1"
+    project: "juliousgonsalves94.tk"
+    instance_type : "t2.micro"
+    ami_id: "ami-0e0ff68cb8e9a188a"
+
+  tasks:
+    - name: "Creating ec2-key pair"
+      amazon.aws.ec2_key:
+        profile: "{{aws_profile}}"
+        region: "{{region}}"
+        name: "{{project}}"
+        state: present
+        tags:
+          Name: "{{project}}"
+          project: "{{project}}"
+
+      register: key_status
+
+    - name: "making a copy of private key in local machine"
+      when: key_status.changed == true
+      copy:
+        content: "{{key_status.key.private_key}}"
+        dest: "{{project}}.pem"
+        mode: 0400
+
+    - name: "Security group for webserver to allow 80.443"
+      amazon.aws.ec2_group:
+        name: "{{project}}-webserver"
+        description: "SG to allow ports 80,443 for webserver"
+        profile: "{{aws_profile}}"
+        region: "{{region}}"
+        rules:
+          - proto: tcp
+            from_port: 80
+            to_port: 80
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all on port 80
+          - proto: tcp
+            from_port: 443
+            to_port: 443
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all on port 443
+
+
+        tags:
+          Name: "{{project}}-webserver"
+          project: "{{project}}"
+
+      register: webserver
+
+    - name: "Security group for webserver to allow 22 for ssh"
+      amazon.aws.ec2_group:
+        name: "{{project}}-ssh"
+        description: "SG to allow ports 22 for webserver"
+        profile: "{{aws_profile}}"
+        region: "{{region}}"
+        rules:
+          - proto: tcp
+            from_port: 22
+            to_port: 22
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all on port 22
+
+        tags:
+          Name: "{{project}}-ssh"
+          project: "{{project}}"
+
+      register: ssh
+
+
+    - name: "Creating Ec-2 Instance for webserver"
+      amazon.aws.ec2:
+        profile: "{{aws_profile}}"
+        region: "{{region}}"
+        key_name: "{{key_status.key.name}}"
+        instance_type: "{{instance_type}}"
+        image: "{{ami_id}}"
+        user_data: "{{ lookup('file', 'userdata.sh') }}"
+        group_id:
+          - "{{ webserver.group_id }}"
+          - "{{ ssh.group_id }}"
+        wait: yes
+        instance_tags:
+          Name: "{{project}}-webserver"
+          project: "{{project}}"
+
+        count_tag:
+          project: "{{project}}"
+        exact_count: 1
+
